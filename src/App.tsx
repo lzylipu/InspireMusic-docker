@@ -752,6 +752,7 @@ function App() {
           onTabChange={(tab) => {
             setActiveTab(tab);
             setShowQueue(false);
+            setShowLyrics(false); // 移动端切换页面时自动收起歌词
           }}
         />
       }
@@ -781,7 +782,13 @@ function App() {
             const next = modes[(modes.indexOf(playMode) + 1) % modes.length];
             setPlayMode(next);
           }}
-          onTogglePlaylist={() => setShowQueue(!showQueue)}
+          onTogglePlaylist={() => {
+            // PC端点击播放队列时自动收起歌词
+            if (showLyrics) {
+              setShowLyrics(false);
+            }
+            setShowQueue(!showQueue);
+          }}
           onToggleLyrics={() => setShowLyrics(!showLyrics)}
           showLyrics={showLyrics}
         />
