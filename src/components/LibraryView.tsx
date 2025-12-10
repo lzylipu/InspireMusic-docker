@@ -76,6 +76,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 onPlayPlaylist={onPlayPlaylist}
                 onCreatePlaylist={onCreatePlaylist}
             />
+
+            {/* Version & Copyright Info */}
+            <div className="mt-12 mb-8 text-center">
+                <div className="text-white/40 text-xs space-y-1.5 font-medium">
+                    <p>
+                        感谢 <a
+                            href="https://api.tunefree.fun/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-primary transition-colors underline decoration-white/20 underline-offset-2"
+                        >
+                            TuneHub API
+                        </a>
+                    </p>
+                    <p>Version 1.0.6</p>
+                </div>
+            </div>
         </div>
     );
 };

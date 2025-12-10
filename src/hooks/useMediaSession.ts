@@ -166,6 +166,15 @@ export function useMediaSession({
   useEffect(() => {
     if (!('mediaSession' in navigator) || !title) return;
 
+    // 歌曲变化时，先清除旧的 positionState，避免显示错误的进度
+    if (prevTitleRef.current !== title) {
+      try {
+        navigator.mediaSession.setPositionState();
+      } catch {
+        // 忽略错误
+      }
+    }
+
     const artworkArray: MediaImage[] = artwork
       ? [
         { src: artwork, sizes: '512x512', type: 'image/jpeg' },
@@ -200,26 +209,23 @@ export function useMediaSession({
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
-    // Detect song change by comparing titles
-    const songChanged = prevTitleRef.current !== title;
-
-    // If duration is not ready yet, or no song, skip
-    if (!duration || duration <= 0) return;
+    // 如果 duration 还没准备好（新歌曲正在加载），不设置 positionState
+    // 这样可以避免显示错误的时长信息
+    if (!duration || duration <= 0) {
+      return;
+    }
 
     try {
-      // When song changes, reset position to 0 immediately
-      // Otherwise use the actual position (clamped to duration)
-      const effectivePosition = songChanged ? 0 : Math.min(position, duration);
-
+      // 确保 position 在有效范围内
       navigator.mediaSession.setPositionState({
         duration,
         playbackRate: 1,
-        position: effectivePosition,
+        position: Math.max(0, Math.min(position, duration)),
       });
     } catch {
       // Some browsers may not support setPositionState
     }
-  }, [duration, position, title]);
+  }, [duration, position]);
 
   // Periodic position state refresh to keep notification alive on mobile
   // Some mobile browsers may lose track of media session if not updated

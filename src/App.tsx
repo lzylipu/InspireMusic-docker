@@ -949,8 +949,19 @@ function App() {
             queue={queue}
             currentIndex={queueIndex}
             onPlay={(index) => {
+              shouldAutoPlayRef.current = true;
               setQueueIndex(index);
-              setCurrentSong(queue[index]);
+              const targetSong = queue[index];
+              // 如果是同一首歌，需要强制触发播放
+              if (currentSong && targetSong.id === currentSong.id && targetSong.platform === currentSong.platform) {
+                // 强制播放当前已加载的歌曲
+                if (audioRef.current) {
+                  audioRef.current.currentTime = 0;
+                  audioRef.current.play().catch(() => setIsPlaying(false));
+                }
+              } else {
+                setCurrentSong(targetSong);
+              }
             }}
             onRemove={(index) => {
               const newQueue = queue.filter((_, i) => i !== index);
