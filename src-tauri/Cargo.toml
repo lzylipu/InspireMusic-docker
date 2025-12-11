@@ -1,6 +1,6 @@
 [package]
 name = "inspiremusic"
-version = "1.0.6"
+version = "1.0.9"
 description = "A modern music player"
 authors = ["InspireMusic"]
 edition = "2021"
