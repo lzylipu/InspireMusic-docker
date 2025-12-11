@@ -11,6 +11,10 @@
     },
     "app": {
         "withGlobalTauri": true,
+        "trayIcon": {
+            "iconPath": "icons/icon.png",
+            "iconAsTemplate": false
+        },
         "windows": [
             {
                 "title": "InspireMusic",
@@ -20,7 +24,9 @@
                 "minHeight": 600,
                 "resizable": true,
                 "fullscreen": false,
-                "center": true
+                "center": true,
+                "decorations": false,
+                "transparent": true
             }
         ],
         "security": {
@@ -29,7 +35,10 @@
     },
     "bundle": {
         "active": true,
-        "targets": "all",
+        "targets": [
+            "nsis",
+            "msi"
+        ],
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",
@@ -40,14 +49,12 @@
         "windows": {
             "certificateThumbprint": null,
             "digestAlgorithm": "sha256",
-            "timestampUrl": ""
-        },
-        "macOS": {
-            "minimumSystemVersion": "10.13"
-        },
-        "linux": {
-            "appimage": {
-                "bundleMediaFramework": true
+            "timestampUrl": "",
+            "nsis": {
+                "languages": [
+                    "SimpChinese"
+                ],
+                "displayLanguageSelector": false
             }
         }
     }

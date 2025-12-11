@@ -11,6 +11,7 @@ import {
 } from './api';
 import useLocalStorage from './hooks/useLocalStorage';
 import { useMediaSession } from './hooks/useMediaSession';
+import { useTrayTitle } from './hooks/useTrayTitle';
 import type {
   Platform,
   Quality,
@@ -689,6 +690,9 @@ function App() {
     onPrevTrack: prevSong,
     onSeek: handleSeek,
   });
+
+  // Update system tray title with current song (Tauri only)
+  useTrayTitle(currentSong?.name, currentSong?.artist);
 
   // Keyboard shortcuts
   useEffect(() => {
