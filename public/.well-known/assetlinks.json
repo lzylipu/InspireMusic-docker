@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.netlify.ins_music.twa",
+        "sha256_cert_fingerprints": ["86:E8:20:DC:F6:EE:61:9F:91:5A:66:43:C1:3D:CD:70:9E:A8:16:81:11:EF:18:98:1E:4A:C9:D2:6D:9B:5A:F4"]
+      }
+    }]
