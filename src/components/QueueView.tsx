@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import type { Song } from '../types';
 import { X, Play, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -57,11 +57,19 @@ export const QueueView: React.FC<QueueViewProps> = ({
   }, []);
 
   // 外部请求关闭时触发退出动画
-  useEffect(() => {
-    if (requestClose && !isClosing) {
+  const hasRequestedCloseRef = useRef(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- Intentional: trigger close animation on external request */
+  useLayoutEffect(() => {
+    if (requestClose && !isClosing && !hasRequestedCloseRef.current) {
+      hasRequestedCloseRef.current = true;
       handleClose();
     }
+    // Reset when requestClose becomes false
+    if (!requestClose) {
+      hasRequestedCloseRef.current = false;
+    }
   }, [requestClose, isClosing, handleClose]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   return (
     <>
       {/* Backdrop */}

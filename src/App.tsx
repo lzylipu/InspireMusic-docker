@@ -4,12 +4,11 @@ import {
   buildFileUrl,
   getLyrics,
   getPlaylist,
-  getSongInfo,
   getToplistSongs,
   getToplists,
   searchSongs,
 } from './api';
-import useLocalStorage from './hooks/useLocalStorage';
+import { useAppStore } from './store/useAppStore';
 import { useMediaSession } from './hooks/useMediaSession';
 import { useTrayTitle } from './hooks/useTrayTitle';
 import type {
@@ -38,91 +37,17 @@ import { Select } from './components/ui/Select';
 import { ListMusic, Heart, Check } from 'lucide-react';
 
 import { getGradientFromId } from './utils/colors';
+import { parseLyrics } from './utils/lyrics';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const parseLyrics = (lrc: string): ParsedLyricLine[] => {
-  const timeRegex = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?]/;
-  const lines = lrc.split(/\r?\n/);
-
-  // Check if there's a translation section
-  const translationMarkerIndex = lines.findIndex(line =>
-    line.trim() === '[翻译]' || line.trim() === '[翻譯]' || line.trim().toLowerCase() === '[translation]'
-  );
-
-  const hasTranslationSection = translationMarkerIndex !== -1;
-
-  // Separate main lyrics and translations
-  const mainLines = hasTranslationSection ? lines.slice(0, translationMarkerIndex) : lines;
-  const translationLines = hasTranslationSection ? lines.slice(translationMarkerIndex + 1) : [];
-
-  // Parse time string to seconds
-  const parseTime = (match: RegExpMatchArray): number => {
-    const mins = Number(match[1]);
-    const secs = Number(match[2]);
-    const ms = match[3] ? Number(match[3].padEnd(3, '0')) : 0;
-    return mins * 60 + secs + ms / 1000;
-  };
-
-  // Parse main lyrics into array with time
-  const mainLyricsArray: { time: number; text: string }[] = [];
-
-  mainLines.forEach((line) => {
-    const match = line.match(timeRegex);
-    if (!match) return;
-
-    const content = line.replace(timeRegex, '').trim();
-    if (!content) return;
-
-    const time = parseTime(match);
-    mainLyricsArray.push({ time, text: content });
-  });
-
-  // Sort main lyrics by time
-  mainLyricsArray.sort((a, b) => a.time - b.time);
-
-  // Parse translations into array with time
-  const translationsArray: { time: number; text: string }[] = [];
-
-  translationLines.forEach((line) => {
-    const match = line.match(timeRegex);
-    if (!match) return;
-
-    const content = line.replace(timeRegex, '').trim();
-    // Skip empty translations or placeholder translations
-    if (!content || content === '//' || content === '///' || content === '/') return;
-
-    const time = parseTime(match);
-    translationsArray.push({ time, text: content });
-  });
-
-  // Sort translations by time
-  translationsArray.sort((a, b) => a.time - b.time);
-
-  // Match translations to main lyrics using fuzzy time matching
-  // Allow up to 0.5 second difference for matching
-  const TIME_TOLERANCE = 0.5;
-
-  return mainLyricsArray.map(({ time, text }) => {
-    // Find the closest translation within tolerance
-    let bestMatch: string | undefined;
-    let bestDiff = TIME_TOLERANCE + 1;
-
-    for (const trans of translationsArray) {
-      const diff = Math.abs(trans.time - time);
-      if (diff < bestDiff && diff <= TIME_TOLERANCE) {
-        bestDiff = diff;
-        bestMatch = trans.text;
-      }
-      // If we've passed the time window, no need to continue
-      if (trans.time > time + TIME_TOLERANCE) break;
-    }
-
-    return {
-      time,
-      text,
-      translation: bestMatch,
-    };
-  });
+const applyQualityToUrl = (rawUrl: string, quality: Quality): string => {
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set('br', quality);
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
 };
 
 function App() {
@@ -160,46 +85,45 @@ function App() {
   const [keyword, setKeyword] = useState('');
   const [searchSource, setSearchSource] = useState<'aggregate' | Platform>('aggregate');
   const [searchResults, setSearchResults] = useState<Song[]>([]);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchTotal, setSearchTotal] = useState<number | undefined>(undefined);
+  const [searchLockedFromPage, setSearchLockedFromPage] = useState<number | undefined>(undefined);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Player State
-  const [currentSong, setCurrentSong] = useState<Song | null>(() => {
-    // Attempt to restore from local storage queue
-    try {
-      const q = window.localStorage.getItem('inspire-queue');
-      const idx = window.localStorage.getItem('inspire-queue-index');
-      if (q && idx) {
-        const parsedQ = JSON.parse(q) as Song[];
-        const parsedIdx = JSON.parse(idx) as number;
-        if (parsedQ.length > 0 && parsedIdx >= 0 && parsedIdx < parsedQ.length) {
-          return parsedQ[parsedIdx];
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  });
+  // Player State - 从 Zustand store 获取持久化状态
+  const {
+    currentSong,
+    setCurrentSong,
+    queue,
+    setQueue,
+    queueIndex,
+    setQueueIndex,
+    volume,
+    setVolume,
+    playMode,
+    setPlayMode,
+    quality,
+    setQuality,
+    favorites,
+    playlists,
+    savedProgress,
+    saveProgress: setSavedProgress,
+    addPlaylist,
+    updatePlaylist,
+    deletePlaylist: storeDeletePlaylist,
+    toggleSongInPlaylist: storeToggleSongInPlaylist,
+  } = useAppStore();
+
   const [currentInfo, setCurrentInfo] = useState<SongInfo | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
   const [lyrics, setLyrics] = useState('');
   const [parsedLyrics, setParsedLyrics] = useState<ParsedLyricLine[]>([]);
   const [activeLyricIndex, setActiveLyricIndex] = useState<number>(-1);
   const [lyricsLoading, setLyricsLoading] = useState(false);
-  const [quality, setQuality] = useLocalStorage<Quality>('inspire-quality', '320k');
-  const [volume, setVolume] = useLocalStorage<number>('inspire-volume', 0.8);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [playMode, setPlayMode] = useState<'list' | 'shuffle' | 'single'>('list');
-
-  // Data State
-  const [favorites, setFavorites] = useLocalStorage<Song[]>('inspire-favs', []);
-  const [playlists, setPlaylists] = useLocalStorage<LocalPlaylist[]>('inspire-playlists', []);
-  const [queue, setQueue] = useLocalStorage<Song[]>('inspire-queue', []);
-  const [queueIndex, setQueueIndex] = useLocalStorage<number>('inspire-queue-index', -1);
-  const [savedProgress, setSavedProgress] = useLocalStorage<number>('inspire-progress', 0);
 
 
 
@@ -224,15 +148,23 @@ function App() {
   const queueRef = useRef<Song[]>([]);
   const queueIndexRef = useRef(-1);
 
-  const toggleFavorite = (song: Song) => {
-    setFavorites((prev) => {
-      const exists = prev.some((item) => item.id === song.id && item.platform === song.platform);
-      if (exists) {
-        return prev.filter((item) => !(item.id === song.id && item.platform === song.platform));
-      }
-      return [...prev, song];
-    });
-  };
+
+
+  // Keep the playlist detail view in sync with underlying data changes.
+  useEffect(() => {
+    if (!viewingPlaylist) return;
+
+    if (viewingPlaylist.id === 'favorites') {
+      setViewingPlaylist((prev) => (prev ? { ...prev, name: '我喜欢的音乐', songs: favorites } : prev));
+      return;
+    }
+
+    const pl = playlists.find(p => p.id === viewingPlaylist.id);
+    if (pl) {
+      setViewingPlaylist(pl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: only sync when viewingPlaylist.id changes, not the full object
+  }, [favorites, playlists, viewingPlaylist?.id]);
 
   // --- Audio & Player Logic ---
 
@@ -320,6 +252,7 @@ function App() {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audioRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: audio element setup should only run once on mount
   }, []);
 
   useEffect(() => {
@@ -346,7 +279,9 @@ function App() {
   useEffect(() => {
     if (!currentSong || !audioRef.current) return;
     const audio = audioRef.current;
-    const src = buildFileUrl(currentSong.platform, currentSong.id, 'url', quality);
+    const src = currentSong.url
+      ? applyQualityToUrl(currentSong.url, quality)
+      : buildFileUrl(currentSong.platform, currentSong.id, 'url', quality);
 
     // Detect if this is a different song
     const songId = `${currentSong.platform}-${currentSong.id}`;
@@ -382,6 +317,7 @@ function App() {
     return () => {
       audio.removeEventListener('canplay', handleCanPlay);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: savedProgress only needed on initial load
   }, [currentSong, quality]);
 
   // --- Sleep Timer Logic ---
@@ -418,6 +354,7 @@ function App() {
       }
       clearInterval(saveInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: setSavedProgress is stable from useLocalStorage
   }, [isPlaying, currentSong]);
 
   // --- Lyrics Logic ---
@@ -446,6 +383,7 @@ function App() {
       }
     }
     setActiveLyricIndex(parsed.length ? initialIdx : -1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: progress only checked on initial parse, not on every progress update
   }, [lyrics]);
 
   useEffect(() => {
@@ -466,19 +404,28 @@ function App() {
     if (currentIdx !== activeLyricIndex) {
       setActiveLyricIndex(currentIdx);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: activeLyricIndex is the value being set, not a dependency
   }, [progress, parsedLyrics]);
 
   const loadSongDetails = async (song: Song) => {
-    setCurrentInfo(null);
     setLyrics('');
     setInfoError(null);
     setLyricsLoading(true);
+
+    const info: SongInfo = {
+      name: song.name,
+      artist: song.artist || '',
+      album: song.album || '',
+      url: song.url || buildFileUrl(song.platform, song.id, 'url'),
+      pic: song.pic || buildFileUrl(song.platform, song.id, 'pic'),
+      lrc: song.lrc || buildFileUrl(song.platform, song.id, 'lrc'),
+    };
+    setCurrentInfo(info);
+
     try {
-      const info = await getSongInfo(song.platform, song.id);
-      setCurrentInfo(info);
-      const lyricText = await getLyrics(song.platform, song.id);
+      const lyricText = await getLyrics(song.platform, song.id, info.lrc);
       setLyrics(lyricText);
-    } catch (err) {
+    } catch {
       setInfoError('无法加载详情');
     } finally {
       setLyricsLoading(false);
@@ -577,7 +524,7 @@ function App() {
   const handleCreatePlaylistConfirm = () => {
     if (newPlaylistName.trim()) {
       const newList: LocalPlaylist = { id: `pl-${Date.now()}`, name: newPlaylistName.trim(), songs: [] };
-      setPlaylists(prev => [newList, ...prev]);
+      addPlaylist(newList);
       addToast('success', '歌单创建成功');
       setIsCreatePlaylistModalOpen(false);
     }
@@ -585,9 +532,7 @@ function App() {
 
   const handleRenamePlaylist = () => {
     if (playlistToRename && renamePlaylistName.trim()) {
-      setPlaylists(prev => prev.map(p =>
-        p.id === playlistToRename.id ? { ...p, name: renamePlaylistName.trim() } : p
-      ));
+      updatePlaylist(playlistToRename.id, { name: renamePlaylistName.trim() });
       if (viewingPlaylist?.id === playlistToRename.id) {
         setViewingPlaylist(prev => prev ? { ...prev, name: renamePlaylistName.trim() } : null);
       }
@@ -598,21 +543,7 @@ function App() {
   };
 
   const toggleSongInPlaylist = (playlistId: string, song: Song) => {
-    if (playlistId === 'favorites') {
-      toggleFavorite(song);
-      return;
-    }
-
-    setPlaylists(prev => prev.map(pl => {
-      if (pl.id !== playlistId) return pl;
-
-      const exists = pl.songs.some(s => s.id === song.id && s.platform === song.platform);
-      if (exists) {
-        return { ...pl, songs: pl.songs.filter(s => !(s.id === song.id && s.platform === song.platform)) };
-      } else {
-        return { ...pl, songs: [...pl.songs, song] };
-      }
-    }));
+    storeToggleSongInPlaylist(playlistId, song);
   };
 
   const deletePlaylist = (id: string) => {
@@ -621,7 +552,7 @@ function App() {
 
   const handleDeletePlaylistConfirm = () => {
     if (playlistToDelete) {
-      setPlaylists(prev => prev.filter(p => p.id !== playlistToDelete));
+      storeDeletePlaylist(playlistToDelete);
       if (viewingPlaylist?.id === playlistToDelete) setActiveTab('library');
       addToast('success', '歌单已删除');
       setPlaylistToDelete(null);
@@ -636,21 +567,27 @@ function App() {
       const songs: Song[] = (data.list || []).map((item) => ({
         id: item.id,
         name: item.name,
-        artist: '',
-        album: '',
+        artist: item.artist,
+        album: item.album,
         platform: item.platform || playlistSource,
-        pic: buildFileUrl(item.platform || playlistSource, item.id, 'pic'),
+        url: item.url,
+        pic: item.pic,
+        lrc: item.lrc,
+        info: item.info,
+        types: item.types,
       }));
       const imported: LocalPlaylist = {
         id: `import-${playlistSource}-${Date.now()}`,
         name: data.info?.name || '导入歌单',
         songs,
-        source: playlistSource,
+        source: data.source || playlistSource,
         origin: data.info?.author,
+        pic: data.info?.pic,
+        desc: data.info?.desc,
       };
-      setPlaylists(prev => [imported, ...prev]);
+      addPlaylist(imported);
       addToast('success', `成功导入歌单：${data.info?.name}`);
-    } catch (err) {
+    } catch {
       addToast('error', '导入失败，请检查ID或链接');
     } finally {
       setLoadingPlaylist(false);
@@ -663,6 +600,7 @@ function App() {
     if (activeTab === 'toplists') {
       fetchToplists();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: fetchToplists is defined outside and stable
   }, [activeTab, toplistSource]);
 
   const fetchToplists = async () => {
@@ -731,6 +669,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: setVolume and togglePlayPause are stable
   }, [progress, duration, volume, isPlaying]);
 
   return (
@@ -739,9 +678,17 @@ function App() {
         <Sidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          playlists={playlists}
+          playlists={[
+            { id: 'favorites', name: '我喜欢的音乐', songs: favorites },
+            ...playlists,
+          ]}
           activePlaylistId={viewingPlaylist?.id || ''}
           onPlaylistSelect={(id) => {
+            if (id === 'favorites') {
+              setViewingPlaylist({ id: 'favorites', name: '我喜欢的音乐', songs: favorites });
+              setActiveTab('playlist');
+              return;
+            }
             const pl = playlists.find(p => p.id === id);
             if (pl) {
               setViewingPlaylist(pl);
@@ -857,17 +804,69 @@ function App() {
               onSearch={async (kw?: string) => {
                 const searchKeyword = kw || keyword;
                 if (!searchKeyword.trim()) return;
+                const requestLimit = searchSource === 'aggregate' ? 10 : 30;
                 setSearching(true);
+                setError(null);
+                setSearchPage(1);
+                setSearchLockedFromPage(undefined);
                 // Update the keyword state if a different one was passed (e.g. from history click)
                 if (kw) setKeyword(kw);
 
                 try {
                   const data = searchSource === 'aggregate'
-                    ? await aggregateSearch(searchKeyword.trim())
-                    : await searchSongs(searchSource, searchKeyword.trim());
+                    ? await aggregateSearch(searchKeyword.trim(), requestLimit, 1)
+                    : await searchSongs(searchSource, searchKeyword.trim(), requestLimit, 1);
                   setSearchResults(data.results);
-                } catch (e) {
+                  setSearchTotal(data.total ?? data.results.length);
+                  if (!data.results.length) {
+                    setSearchLockedFromPage(2);
+                  }
+                  const currentCount = data.total ?? data.results.length;
+                  if (searchSource !== 'aggregate' && currentCount < requestLimit) {
+                    setSearchLockedFromPage((prev) => (prev !== undefined ? Math.min(prev, 2) : 2));
+                  }
+                } catch {
                   setError('搜索失败');
+                } finally {
+                  setSearching(false);
+                }
+              }}
+              page={searchPage}
+              limit={30}
+              total={searchTotal}
+              lockedFromPage={searchLockedFromPage}
+              onPageChange={async (page) => {
+                const searchKeyword = keyword;
+                if (!searchKeyword.trim()) return;
+                if (page === searchPage) return;
+                if (searchLockedFromPage !== undefined && page >= searchLockedFromPage) return;
+
+                const requestLimit = searchSource === 'aggregate' ? 10 : 30;
+                setSearching(true);
+                setError(null);
+                try {
+                  const data = searchSource === 'aggregate'
+                    ? await aggregateSearch(searchKeyword.trim(), requestLimit, page)
+                    : await searchSongs(searchSource, searchKeyword.trim(), requestLimit, page);
+
+                  if (!data.results.length) {
+                    setSearchLockedFromPage((prev) => (prev !== undefined ? Math.min(prev, page) : page));
+                    return;
+                  }
+
+                  setSearchResults(data.results);
+                  setSearchTotal(data.total ?? data.results.length);
+                  setSearchPage(page);
+
+                  const currentCount = data.total ?? data.results.length;
+                  if (searchSource !== 'aggregate' && currentCount < requestLimit) {
+                    setSearchLockedFromPage((prev) => (prev !== undefined ? Math.min(prev, page + 1) : page + 1));
+                  }
+                } catch {
+                  setError('搜索失败');
+                  if (page > searchPage) {
+                    setSearchLockedFromPage((prev) => (prev !== undefined ? Math.min(prev, page) : page));
+                  }
                 } finally {
                   setSearching(false);
                 }
@@ -883,6 +882,9 @@ function App() {
                 setSearchResults([]);
                 setError(null);
                 setSearching(false);
+                setSearchPage(1);
+                setSearchTotal(undefined);
+                setSearchLockedFromPage(undefined);
               }}
             />
           </motion.div>
@@ -928,7 +930,9 @@ function App() {
                           name: summary?.name || '排行榜',
                           songs: data.list,
                           source: toplistSource,
-                          origin: summary?.updateFrequency
+                          origin: summary?.updateFrequency,
+                          pic: summary?.pic,
+                          url: summary?.url,
                         };
                         setViewingPlaylist(tempPlaylist);
                         setActiveTab('playlist');

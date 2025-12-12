@@ -196,6 +196,7 @@ export const useAppStore = create<AppStore>()(
             name: 'inspire-music-store',
             partialize: (state) => ({
                 // Only persist these fields
+                currentSong: state.currentSong,
                 queue: state.queue,
                 queueIndex: state.queueIndex,
                 volume: state.volume,

@@ -2,6 +2,7 @@ import React from 'react';
 import type { ToplistSummary } from '../types';
 import { Trophy } from 'lucide-react';
 import { getGradientFromId } from '../utils/colors';
+import { CoverImage } from './ui/CoverImage';
 
 interface ToplistsViewProps {
   toplists: ToplistSummary[];
@@ -19,8 +20,18 @@ export const ToplistsView: React.FC<ToplistsViewProps> = ({ toplists, onSelect }
             onClick={() => onSelect(list.id)}
             className="group bg-surface hover:bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-300 hover:-translate-y-1"
           >
-            <div className={`aspect-square rounded-md mb-4 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow relative overflow-hidden ${getGradientFromId(`toplist-${list.id}`)}`}>
-              <Trophy size={48} className="text-white/50 group-hover:scale-110 transition-transform duration-500" />
+            <div className={`aspect-square rounded-md mb-4 shadow-lg group-hover:shadow-xl transition-shadow relative overflow-hidden ${getGradientFromId(`toplist-${list.id}`)}`}>
+              <CoverImage
+                src={list.pic}
+                alt={list.name}
+                className="absolute inset-0 w-full h-full object-cover"
+                iconSize={64}
+              />
+              {!list.pic && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Trophy size={48} className="text-white/50 group-hover:scale-110 transition-transform duration-500" />
+                </div>
+              )}
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <h3 className="font-bold text-white truncate">{list.name}</h3>

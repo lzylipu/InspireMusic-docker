@@ -3,14 +3,13 @@ import { Search, History, Trash2, X } from 'lucide-react';
 import type { Song, Platform } from '../types';
 import { SongList } from './SongList';
 import { Select } from './ui/Select';
-import useLocalStorage from '../hooks/useLocalStorage';
 
 interface SearchViewProps {
   keyword: string;
   onKeywordChange: (val: string) => void;
   searchSource: 'aggregate' | Platform;
   onSearchSourceChange: (val: 'aggregate' | Platform) => void;
-  onSearch: (keyword?: string) => void; // Updated signature
+  onSearch: (keyword?: string) => void;
   results: Song[];
   loading: boolean;
   error?: string | null;
@@ -18,7 +17,31 @@ interface SearchViewProps {
   isPlaying: boolean;
   onPlay: (song: Song) => void;
   onClear: () => void;
+  page: number;
+  limit: number;
+  total?: number;
+  onPageChange: (page: number) => void;
+  lockedFromPage?: number;
 }
+
+// Helper to read search history from localStorage
+const getStoredHistory = (): string[] => {
+  try {
+    const item = localStorage.getItem('search-history');
+    return item ? JSON.parse(item) : [];
+  } catch {
+    return [];
+  }
+};
+
+// Helper to save search history to localStorage
+const saveHistory = (history: string[]): void => {
+  try {
+    localStorage.setItem('search-history', JSON.stringify(history));
+  } catch {
+    // Ignore write errors
+  }
+};
 
 export const SearchView: React.FC<SearchViewProps> = ({
   keyword,
@@ -33,8 +56,13 @@ export const SearchView: React.FC<SearchViewProps> = ({
   isPlaying,
   onPlay,
   onClear,
+  page,
+  limit,
+  total,
+  onPageChange,
+  lockedFromPage,
 }) => {
-  const [history, setHistory] = useLocalStorage<string[]>('search-history', []);
+  const [history, setHistory] = useState<string[]>(getStoredHistory);
   const [confirmClear, setConfirmClear] = useState(false);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -44,12 +72,20 @@ export const SearchView: React.FC<SearchViewProps> = ({
     };
   }, []);
 
+  const updateHistory = (updater: (prev: string[]) => string[]) => {
+    setHistory(prev => {
+      const newHistory = updater(prev);
+      saveHistory(newHistory);
+      return newHistory;
+    });
+  };
+
   const handleSearch = (kw?: string) => {
     const term = kw || keyword;
     if (!term.trim()) return;
 
     // Update history
-    setHistory((prev) => {
+    updateHistory((prev) => {
       const newHistory = [term, ...prev.filter((h) => h !== term)];
       return newHistory.slice(0, 20); // Keep max 20 items
     });
@@ -59,12 +95,12 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
   const deleteHistoryItem = (e: React.MouseEvent, item: string) => {
     e.stopPropagation();
-    setHistory((prev) => prev.filter((h) => h !== item));
+    updateHistory((prev) => prev.filter((h) => h !== item));
   };
 
   const handleClearHistory = () => {
     if (confirmClear) {
-      setHistory([]);
+      updateHistory(() => []);
       setConfirmClear(false);
       if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     } else {
@@ -74,6 +110,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
       }, 3000);
     }
   };
+
+  const showResultsPanel = keyword.trim() && (loading || total !== undefined || results.length > 0);
 
   return (
     <div className="p-4 md:p-8">
@@ -105,7 +143,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
           <div className="md:hidden">
             <Select
               value={searchSource}
-              onChange={(val) => onSearchSourceChange(val as any)}
+              onChange={(val) => onSearchSourceChange(val as 'aggregate' | Platform)}
               options={[
                 { value: 'aggregate', label: '聚合' },
                 { value: 'netease', label: '网易云' },
@@ -127,7 +165,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         <div className="hidden md:block">
           <Select
             value={searchSource}
-            onChange={(val) => onSearchSourceChange(val as any)}
+            onChange={(val) => onSearchSourceChange(val as 'aggregate' | Platform)}
             options={[
               { value: 'aggregate', label: '聚合搜索' },
               { value: 'netease', label: '网易云音乐' },
@@ -152,15 +190,45 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
       )}
 
-      {results.length > 0 ? (
-        <div className="bg-black/20 rounded-xl overflow-hidden">
-          <SongList
-            songs={results}
-            currentSong={currentSong}
-            isPlaying={isPlaying}
-            onPlay={onPlay}
-          />
-        </div>
+      {showResultsPanel ? (
+        <>
+          <div className="bg-black/20 rounded-xl overflow-hidden">
+            <SongList
+              songs={results}
+              currentSong={currentSong}
+              isPlaying={isPlaying}
+              onPlay={onPlay}
+              indexOffset={(page - 1) * limit}
+            />
+          </div>
+
+          <div className="flex items-center justify-center gap-2 mt-5">
+            {(() => {
+              const pages = Array.from({ length: 5 }, (_, i) => i + 1);
+
+              return pages.map((p) => {
+                const isLocked = lockedFromPage !== undefined && p >= lockedFromPage;
+                const disabled = loading || isLocked;
+                const active = p === page;
+
+                return (
+                  <button
+                    key={p}
+                    onClick={() => onPageChange(p)}
+                    disabled={disabled}
+                    className={[
+                      "min-w-10 px-3 py-2 rounded-md text-sm font-bold transition-all border",
+                      active ? "bg-primary text-black border-primary" : "bg-white/5 text-gray-300 border-white/10 hover:bg-white/10",
+                      disabled ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-95",
+                    ].join(' ')}
+                  >
+                    {p}
+                  </button>
+                );
+              });
+            })()}
+          </div>
+        </>
       ) : (
         <>
           {history.length > 0 && !keyword.trim() ? (
@@ -206,8 +274,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
       )}
 
       {/* Version & Copyright Info */}
-      <div className="mt-80 mb-8 text-center">
-        <p className="text-xs text-white/40">© InspireMusic v1.2.0  All rights reserved.</p>
+      <div className="mt-10 mb-8 text-center">
+        <p className="text-xs text-white/40">© InspireMusic v1.3.0  All rights reserved.</p>
         <div className="mt-5 text-white/40 text-xs space-y-1.5 font-medium">
           <p>
             Powered by <a

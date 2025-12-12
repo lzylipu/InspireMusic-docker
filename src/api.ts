@@ -58,22 +58,25 @@ export const buildFileUrl = (
 export const searchSongs = async (
   source: Platform,
   keyword: string,
-  limit = 20,
+  limit = 30,
+  page = 1,
 ): Promise<SearchResult> => {
   // 检查缓存（搜索结果短期缓存）
-  const cacheKey = generateCacheKey('search', source, keyword, limit);
+  const cacheKey = generateCacheKey('search', source, keyword, limit, page);
   const cached = getFromCache<SearchResult>(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const path = buildPath({ source, type: 'search', keyword, limit });
+  const path = buildPath({ source, type: 'search', keyword, limit, page });
   const data = await handleResponse<{
     code: number;
-    data: { keyword: string; total?: number; results: Song[] };
+    data: { keyword: string; limit?: number; page?: number; total?: number; results: Song[] };
   }>(await fetch(`${BASE_URL}${path}`));
   const result = {
     keyword: data.data.keyword,
+    limit: data.data.limit,
+    page: data.data.page,
     total: data.data.total,
     results: (data.data.results || []).map((item) => ({
       ...item,
@@ -86,21 +89,24 @@ export const searchSongs = async (
   return result;
 };
 
-export const aggregateSearch = async (keyword: string): Promise<SearchResult> => {
+export const aggregateSearch = async (keyword: string, limit = 10, page = 1): Promise<SearchResult> => {
   // 检查缓存
-  const cacheKey = generateCacheKey('aggsearch', keyword);
+  const cacheKey = generateCacheKey('aggsearch', keyword, limit, page);
   const cached = getFromCache<SearchResult>(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const path = buildPath({ type: 'aggregateSearch', keyword });
+  const path = buildPath({ type: 'aggregateSearch', keyword, limit, page });
   const data = await handleResponse<{
     code: number;
-    data: { keyword: string; results: Song[] };
+    data: { keyword: string; limit?: number; page?: number; total?: number; results: Song[] };
   }>(await fetch(`${BASE_URL}${path}`));
   const result = {
     keyword: data.data.keyword,
+    limit: data.data.limit,
+    page: data.data.page,
+    total: data.data.total,
     results: (data.data.results || []).map((item) => ({
       ...item,
       platform: item.platform || 'netease',
@@ -130,7 +136,7 @@ export const getSongInfo = async (source: Platform, id: string): Promise<SongInf
   return data.data;
 };
 
-export const getLyrics = async (source: Platform, id: string): Promise<string> => {
+export const getLyrics = async (source: Platform, id: string, lrcUrl?: string): Promise<string> => {
   // 检查缓存
   const cacheKey = generateCacheKey('lyrics', source, id);
   const cached = getFromCache<string>(cacheKey);
@@ -139,7 +145,7 @@ export const getLyrics = async (source: Platform, id: string): Promise<string> =
   }
 
   const path = buildPath({ source, id, type: 'lrc' });
-  const lyrics = await fetchText(`${BASE_URL}${path}`);
+  const lyrics = await fetchText(lrcUrl || `${BASE_URL}${path}`);
   
   // 保存到缓存（歌词缓存7天）
   saveToCache(cacheKey, lyrics, CACHE_TTL.LYRICS);

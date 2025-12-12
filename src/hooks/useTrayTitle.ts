@@ -21,7 +21,7 @@ export function useTrayTitle(songName?: string, artist?: string) {
                         : songName
                     : 'InspireMusic';
                 await invoke('update_tray_title', { title });
-            } catch (e) {
+            } catch {
                 // 忽略错误（可能不在 Tauri 环境）
             }
         };

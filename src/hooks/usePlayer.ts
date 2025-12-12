@@ -123,6 +123,7 @@ export function usePlayer() {
             audio.removeEventListener('seeked', handleSeeked);
             audioRef.current = null;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: audio element setup should only run once on mount
     }, []);
 
     // Update volume
@@ -142,6 +143,7 @@ export function usePlayer() {
         }
 
         loadSongDetails(currentSong);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: loadSongDetails is stable, setIsPlaying used via ref pattern
     }, [currentSong, quality]);
 
     // Sleep timer
@@ -158,6 +160,7 @@ export function usePlayer() {
 
         const interval = setInterval(checkTimer, 1000);
         return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: setters are stable from zustand
     }, [sleepEndTime]);
 
     // Load song details (info + lyrics)
@@ -178,6 +181,7 @@ export function usePlayer() {
         } finally {
             setLyricsLoading(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: setters are stable from zustand
     }, []);
 
     // Playback controls
@@ -188,6 +192,7 @@ export function usePlayer() {
         setQueueIndex(boundedIndex);
         shouldAutoPlayRef.current = true;
         setCurrentSong(songs[boundedIndex]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: setters are stable from zustand
     }, []);
 
     const playSong = useCallback((song: Song) => {
@@ -203,6 +208,7 @@ export function usePlayer() {
             shouldAutoPlayRef.current = true;
             setCurrentSong(song);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: using refs for queue access, setters are stable
     }, []);
 
     const nextSong = useCallback(() => {
@@ -223,6 +229,7 @@ export function usePlayer() {
         setQueueIndex(nextIdx);
         shouldAutoPlayRef.current = true;
         setCurrentSong(currentQueue[nextIdx]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: using refs for queue access, setters are stable
     }, []);
 
     const prevSong = useCallback(() => {
@@ -236,6 +243,7 @@ export function usePlayer() {
         setQueueIndex(prevIdx);
         shouldAutoPlayRef.current = true;
         setCurrentSong(queueRef.current[prevIdx]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: using refs for queue access, setters are stable
     }, []);
 
     const togglePlayPause = useCallback(() => {
@@ -254,6 +262,7 @@ export function usePlayer() {
             audioRef.current.currentTime = time;
             setProgress(time);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: setProgress is stable from zustand
     }, []);
 
     return {

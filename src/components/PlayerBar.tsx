@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Volume2, VolumeX, List, Heart } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Song } from '../types';
@@ -54,12 +54,17 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState(0);
+  const prevProgressRef = useRef(progress);
 
-  useEffect(() => {
-    if (!isDragging) {
+  // Use useLayoutEffect to update drag value synchronously
+  /* eslint-disable react-hooks/set-state-in-effect -- Intentional: sync derived state when progress prop changes */
+  useLayoutEffect(() => {
+    if (!isDragging && prevProgressRef.current !== progress) {
+      prevProgressRef.current = progress;
       setDragValue(progress);
     }
   }, [progress, isDragging]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <div className="h-16 md:h-24 bg-surface border-t border-gray-800 px-2 md:px-4 flex items-center justify-between z-50 relative">

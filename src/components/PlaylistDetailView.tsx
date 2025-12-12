@@ -1,7 +1,7 @@
 import React from 'react';
-import type { Song, LocalPlaylist } from '../types';
+import type { Song, LocalPlaylist, Platform } from '../types';
 import { SongList } from './SongList';
-import { Play, ListMusic, Edit2, Trash2 } from 'lucide-react';
+import { Play, Edit2, Trash2, Heart } from 'lucide-react';
 import { CoverImage } from './ui/CoverImage';
 import { buildFileUrl } from '../api';
 import { getGradientFromId } from '../utils/colors';
@@ -25,19 +25,35 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
   onRename,
   onDelete,
 }) => {
+  const platformLabels: Record<Platform, string> = {
+    netease: '网易云',
+    kuwo: '酷我',
+    qq: 'QQ',
+  };
+
+  const coverSrc =
+    playlist.pic ||
+    playlist.songs[0]?.pic ||
+    (playlist.songs[0] ? buildFileUrl(playlist.songs[0].platform, playlist.songs[0].id, 'pic') : undefined);
+
+  const isFavorites = playlist.id === 'favorites';
+  const coverContainerClass = isFavorites
+    ? 'bg-gradient-to-br from-pink-500 to-purple-600'
+    : getGradientFromId(playlist.id);
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 mb-6 md:mb-8">
-        <div className={`w-32 h-32 md:w-52 md:h-52 shadow-2xl rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 ${getGradientFromId(playlist.id)}`}>
-          {playlist.id === 'favorites' ? (
-             <CoverImage 
-              src={playlist.songs[0]?.pic || (playlist.songs[0] ? buildFileUrl(playlist.songs[0].platform, playlist.songs[0].id, 'pic') : undefined)} 
-              alt={playlist.name} 
+        <div className={`w-32 h-32 md:w-52 md:h-52 shadow-2xl rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 ${coverContainerClass}`}>
+          {isFavorites ? (
+            <Heart size={80} fill="white" className="text-white" />
+          ) : (
+            <CoverImage
+              src={coverSrc}
+              alt={playlist.name}
               className="w-full h-full object-cover"
               iconSize={80}
             />
-          ) : (
-            <ListMusic size={80} className="text-white/50" />
           )}
         </div>
         <div className="flex flex-col gap-2 md:gap-4">
@@ -46,10 +62,25 @@ export const PlaylistDetailView: React.FC<PlaylistDetailViewProps> = ({
             <h1 className="text-3xl md:text-6xl font-black text-white mb-1 md:mb-2">{playlist.name}</h1>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-400">
-            <span className="font-bold text-white">User</span>
-            <span>•</span>
-            <span>{playlist.songs.length} 首歌曲</span>
+            {isFavorites ? (
+              <span>{playlist.songs.length} 首歌曲</span>
+            ) : (
+              <>
+                <span className="font-bold text-white">{playlist.origin || 'User'}</span>
+                {playlist.source && (
+                  <>
+                    <span>•</span>
+                    <span>{platformLabels[playlist.source]}</span>
+                  </>
+                )}
+                <span>•</span>
+                <span>{playlist.songs.length} 首歌曲</span>
+              </>
+            )}
           </div>
+          {!!playlist.desc && (
+            <p className="text-sm text-gray-400 max-w-3xl">{playlist.desc}</p>
+          )}
         </div>
       </div>
 

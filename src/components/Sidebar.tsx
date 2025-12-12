@@ -1,8 +1,9 @@
 import React from 'react';
-import { Home, Search, Library, ListMusic } from 'lucide-react';
+import { Home, Search, Library, Heart } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { LocalPlaylist } from '../types';
-import { getGradientFromId } from '../utils/colors';
+import { CoverImage } from './ui/CoverImage';
+import { buildFileUrl } from '../api';
 
 interface SidebarProps {
   activeTab: 'search' | 'toplists' | 'library' | 'playlist';
@@ -75,9 +76,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onPlaylistSelect(pl.id)}
             >
               <div className="flex items-center gap-3 overflow-hidden">
-                <div className={`min-w-[32px] h-8 rounded flex items-center justify-center ${getGradientFromId(pl.id)}`}>
-                  <ListMusic size={16} className="text-white/70" />
-                </div>
+                {pl.id === 'favorites' ? (
+                  <div className="min-w-[32px] h-8 w-8 rounded flex items-center justify-center bg-gradient-to-br from-pink-500 to-purple-600 shrink-0">
+                    <Heart size={16} fill="white" className="text-white" />
+                  </div>
+                ) : (
+                  <CoverImage
+                    src={pl.pic || pl.songs[0]?.pic || (pl.songs[0] ? buildFileUrl(pl.songs[0].platform, pl.songs[0].id, 'pic') : undefined)}
+                    alt={pl.name}
+                    className="min-w-[32px] h-8 w-8 rounded object-cover bg-gray-800 shrink-0"
+                    iconSize={16}
+                  />
+                )}
                 <span className="truncate">{pl.name}</span>
               </div>
             </div>

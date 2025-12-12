@@ -11,6 +11,7 @@ interface SongListProps {
   isPlaying: boolean;
   onPlay: (song: Song) => void;
   showHeader?: boolean;
+  indexOffset?: number;
 }
 
 const PlatformBadge = memo<{ platform: Platform }>(({ platform }) => {
@@ -136,6 +137,7 @@ export const SongList: React.FC<SongListProps> = memo(({
   isPlaying,
   onPlay,
   showHeader = true,
+  indexOffset = 0,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -158,6 +160,7 @@ export const SongList: React.FC<SongListProps> = memo(({
   // Only virtualize if we have many items AND the container has a measured height
   const shouldVirtualize = songs.length > VIRTUALIZATION_THRESHOLD && containerHeight > 0;
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- Known limitation: TanStack Virtual returns non-memoizable functions, but this is the intended usage pattern
   const virtualizer = useVirtualizer({
     count: songs.length,
     getScrollElement: () => parentRef.current,
@@ -187,7 +190,7 @@ export const SongList: React.FC<SongListProps> = memo(({
               <SongRow
                 key={`${song.platform}-${song.id}`}
                 song={song}
-                index={index}
+                index={indexOffset + index}
                 isCurrent={isCurrent}
                 isPlaying={isPlaying && isCurrent}
                 onPlay={onPlay}
@@ -242,7 +245,7 @@ export const SongList: React.FC<SongListProps> = memo(({
               >
                 <SongRow
                   song={song}
-                  index={virtualRow.index}
+                  index={indexOffset + virtualRow.index}
                   isCurrent={isCurrent}
                   isPlaying={isPlaying && isCurrent}
                   onPlay={onPlay}

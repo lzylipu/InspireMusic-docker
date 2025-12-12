@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { getClearableDataStats, clearUserData } from '../../utils/cache';
 
@@ -7,17 +7,14 @@ interface ClearCacheSectionProps {
 }
 
 export const ClearCacheSection: React.FC<ClearCacheSectionProps> = ({ onCacheCleared }) => {
-    const [stats, setStats] = useState({ count: 0, size: 0 });
+    // Initialize stats directly with the function call (lazy initialization)
+    const [stats, setStats] = useState(() => getClearableDataStats());
     const [showConfirm, setShowConfirm] = useState(false);
     const [clearing, setClearing] = useState(false);
 
     const refreshStats = () => {
         setStats(getClearableDataStats());
     };
-
-    useEffect(() => {
-        refreshStats();
-    }, []);
 
     const formatSize = (bytes: number): string => {
         if (bytes < 1024) return `${bytes} B`;

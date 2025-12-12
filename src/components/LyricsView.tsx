@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo, useLayoutEffect } from 'react';
 import type { ParsedLyricLine, Song } from '../types';
 import { ChevronDown, AudioLines } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -48,10 +48,13 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
 
   // Cleanup on unmount (fix memory leak)
   useEffect(() => {
+    // Copy ref value to avoid stale closure warning
+    const refs = lyricRefs.current;
+    const timeoutRef = userScrollTimeoutRef.current;
     return () => {
-      lyricRefs.current.clear();
-      if (userScrollTimeoutRef.current) {
-        clearTimeout(userScrollTimeoutRef.current);
+      refs.clear();
+      if (timeoutRef) {
+        clearTimeout(timeoutRef);
       }
     };
   }, []);
@@ -156,6 +159,7 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
       }, 150);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional: initial scroll should use activeLyricIndex and scrollToActiveLyric at render time
   }, [lyrics]); // Re-run when lyrics change (new song)
 
   // Handle lyric click to seek
@@ -174,11 +178,19 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   }, [onClose]);
 
   // 外部请求关闭时触发退出动画
-  useEffect(() => {
-    if (requestClose && isVisible) {
+  const hasRequestedCloseRef = useRef(false);
+   
+  useLayoutEffect(() => {
+    if (requestClose && isVisible && !hasRequestedCloseRef.current) {
+      hasRequestedCloseRef.current = true;
       handleClose();
     }
+    // Reset when requestClose becomes false
+    if (!requestClose) {
+      hasRequestedCloseRef.current = false;
+    }
   }, [requestClose, isVisible, handleClose]);
+   
 
   return (
     <div

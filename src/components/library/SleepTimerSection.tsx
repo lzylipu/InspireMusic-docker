@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { Timer, Clock, X } from 'lucide-react';
 
 interface SleepTimerSectionProps {
@@ -16,9 +16,17 @@ export const SleepTimerSection: React.FC<SleepTimerSectionProps> = ({
     const [showCustomTimer, setShowCustomTimer] = useState(false);
     const [timeLeft, setTimeLeft] = useState<string>('');
 
-    useEffect(() => {
+    // Use useLayoutEffect to reset timeLeft synchronously when sleepEndTime is null
+    /* eslint-disable react-hooks/set-state-in-effect -- Intentional: sync derived state when sleepEndTime prop changes */
+    useLayoutEffect(() => {
         if (!sleepEndTime) {
             setTimeLeft('');
+        }
+    }, [sleepEndTime]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    useEffect(() => {
+        if (!sleepEndTime) {
             return;
         }
 

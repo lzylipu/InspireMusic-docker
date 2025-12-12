@@ -97,7 +97,7 @@ export const cleanupExpiredCache = (): void => {
         validKeys.push(key);
         totalSize += estimateSize(item);
       }
-    } catch (e) {
+    } catch {
       // 损坏的缓存项，移除
       localStorage.removeItem(key);
     }
@@ -126,7 +126,7 @@ const forceCleanup = (): void => {
         timestamp: entry.timestamp,
         size: estimateSize(item),
       });
-    } catch (e) {
+    } catch {
       localStorage.removeItem(key);
     }
   }
@@ -197,22 +197,33 @@ export const saveToCache = <T>(key: string, data: T, ttl: number): void => {
     };
 
     const serialized = JSON.stringify(entry);
-    const size = estimateSize(serialized);
+    const newSize = estimateSize(serialized);
 
-    // 检查是否需要清理
+    // 获取索引并计算旧条目大小（如果存在）
     const index = getCacheIndex();
-    if (index.totalSize + size > MAX_CACHE_SIZE) {
+    let oldSize = 0;
+    const existingItem = localStorage.getItem(key);
+    if (existingItem) {
+      oldSize = estimateSize(existingItem);
+    }
+
+    // 检查是否需要清理（使用净增加量判断）
+    const netIncrease = newSize - oldSize;
+    if (index.totalSize + netIncrease > MAX_CACHE_SIZE) {
       forceCleanup();
     }
 
     localStorage.setItem(key, serialized);
 
-    // 更新索引
+    // 更新索引（正确处理更新场景）
     const newIndex = getCacheIndex();
     if (!newIndex.keys.includes(key)) {
       newIndex.keys.push(key);
+      newIndex.totalSize += newSize;
+    } else {
+      // 更新已存在的键：减去旧大小，加上新大小
+      newIndex.totalSize = newIndex.totalSize - oldSize + newSize;
     }
-    newIndex.totalSize += size;
     saveCacheIndex(newIndex);
   } catch (e) {
     // localStorage 可能已满，尝试清理后重试
@@ -249,7 +260,7 @@ export const clearAllCache = (): void => {
   for (const key of index.keys) {
     try {
       localStorage.removeItem(key);
-    } catch (e) {
+    } catch {
       // Ignore
     }
   }
@@ -276,7 +287,7 @@ export const getCacheStats = (): { count: number; size: number; items: { key: st
         age: Math.round((now - entry.timestamp) / 1000 / 60), // 分钟
         ttl: Math.round(entry.ttl / 1000 / 60), // 分钟
       });
-    } catch (e) {
+    } catch {
       // Ignore
     }
   }
@@ -301,7 +312,7 @@ if (typeof window !== 'undefined') {
  * @returns 清理结果统计
  */
 export const clearUserData = (): { clearedCount: number; totalSize: number } => {
-  // 需要清除的用户数据键
+  // 需要清除的用户数据键（保留收藏、歌单、音质设置）
   const clearKeys = [
     'inspire-volume',
     'inspire-queue',
@@ -328,7 +339,7 @@ export const clearUserData = (): { clearedCount: number; totalSize: number } => 
         localStorage.removeItem(key);
         clearedCount++;
       }
-    } catch (e) {
+    } catch {
       // Ignore
     }
   }
@@ -364,7 +375,7 @@ export const getClearableDataStats = (): { count: number; size: number } => {
         size += estimateSize(item);
         count++;
       }
-    } catch (e) {
+    } catch {
       // Ignore
     }
   }

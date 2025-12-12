@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
 import { Music } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -12,10 +12,17 @@ interface CoverImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 export const CoverImage = React.forwardRef<HTMLImageElement, CoverImageProps>(
   ({ src, alt, className, iconSize = "40%", ...props }, ref) => {
     const [hasError, setHasError] = useState(false);
+    const prevSrcRef = useRef(src);
 
-    useEffect(() => {
-      setHasError(false);
+    // Use useLayoutEffect to reset error state synchronously before paint
+    /* eslint-disable react-hooks/set-state-in-effect -- Intentional: sync derived state when src prop changes */
+    useLayoutEffect(() => {
+      if (prevSrcRef.current !== src) {
+        prevSrcRef.current = src;
+        setHasError(false);
+      }
     }, [src]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     if (!src || hasError) {
       return (
