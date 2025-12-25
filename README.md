@@ -1,5 +1,5 @@
 # InspireMusic
-
+[原项目](https://github.com/WHStudio/InspireMusic)
 [在线体验](https://ins-music.netlify.app/) | [下载 Windows 桌面端](https://github.com/WHStudio/InspireMusic/releases/download/v1.3.3/InspireMusic_1.3.3_x64-setup.exe)
 
 一个现代化的纯前端音乐 APP ，可以在 CloudFlare Pages / Netlify / Vercel 上轻松部署，同时提供 Windows 桌面端。
